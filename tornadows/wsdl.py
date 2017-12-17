@@ -69,6 +69,9 @@ class Wsdl:
 			elif isinstance(self._elementInput,xmltypes.Array):
 				typeInput  = self._elementNameInput+method
 				types += self._elementInput.createArray(typeInput)			
+			elif isinstance(self._elementInput,xmltypes.Choice):
+				typeInput  = self._elementNameInput+method
+				types += self._elementInput.createChoice(typeInput)			
 			elif isinstance(self._elementInput,list) or inspect.isclass(self._elementInput) and issubclass(self._elementInput,xmltypes.PrimitiveType):
 				typeInput  = self._elementNameInput+method
 				types += self._createTypes(typeInput,self._elementInput)			
@@ -88,6 +91,9 @@ class Wsdl:
 			elif isinstance(self._elementOutput,xmltypes.Array):
 				typeOutput = self._elementNameOutput+method
 				types += self._elementOutput.createArray(typeOutput)
+			elif isinstance(self._elementOutput,xmltypes.Choice):
+				typeOutput = self._elementNameOutput+method
+				types += self._elementOutput.createChoice(typeOutput)
 			elif isinstance(self._elementOutput,list) or inspect.isclass(self._elementOutput) and issubclass(self._elementOutput,xmltypes.PrimitiveType):
 				typeOutput = self._elementNameOutput+method
 				types += self._createTypes(typeOutput,self._elementOutput)

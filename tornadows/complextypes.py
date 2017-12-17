@@ -129,6 +129,126 @@ class ArrayProperty(list):
 			xsd += '<%s:element name="%s" type="tns:%s" minOccurs="%s" maxOccurs="%s"/>'%(namespace,nameelement,self._object.getName(),str(self._minOccurs),str(self._maxOccurs))
 		return xsd
 
+class ChoiceProperty(object):
+	""" For create a choice of classes """
+	def __init__(self, items):
+		self._values = {} 
+		self._items = items
+		self._chosen = None
+
+		for attr, element in items:
+			typeobj = self._createAttributeType(element)
+			self._values[attr] = typeobj
+
+	def c(self):
+		return self._chosen, self._values[chosen]
+
+	def __getattr__(self, attr):
+		if not self.__dict__['_values'] or attr not in self.__dict__['_values']:
+			return object.__getattr__(self, attr)
+		else:
+			self._chosen = attr
+			return self._values[self._chosen]
+
+	def __setattr__(self, attr, value):
+		if '_values' in self.__dict__ and attr in self.__dict__['_values']:
+			self._chosen = attr
+			self._values[self._chosen] = value
+		else:
+			object.__setattr__(self, attr, value)
+
+	def toXSD(self,namespace='xsd',nameelement=None):
+		""" Create xml complex type for ChoiceProperty """
+		xsd = self._object.toXSD()
+		xsd += "<%s:choice>" % namespace
+		for item in self._items:
+			xsd += '<%s:element name="%s" type="tns:%s"/>' % \
+				(namespace, item[0], item[1].getName())
+		xsd += "</%s:choice>" % namespace
+		return xsd
+
+	@classmethod	
+	def _createAttributeType(self,element):
+		""" Class method to create the types of the attributes of a ChoiceProperty """
+		if isinstance(element,list):
+			return list()
+		elif isinstance(element,IntegerProperty):
+			return IntegerProperty()
+		elif isinstance(element,DecimalProperty):
+			return DecimalProperty()
+		elif isinstance(element,DoubleProperty):
+			return DoubleProperty()
+		elif isinstance(element,FloatProperty):
+			return FloatProperty()
+		elif isinstance(element,DurationProperty):
+			return DurationProperty()
+		elif isinstance(element,DateProperty):
+			return DateProperty()
+		elif isinstance(element,TimeProperty):
+			return TimeProperty()
+		elif isinstance(element,DateTimeProperty):
+			return DateTimeProperty()
+		elif isinstance(element,StringProperty):
+			return StringProperty()
+		elif isinstance(element,BooleanProperty):
+			return BooleanProperty()
+		elif isinstance(element, ChoiceProperty):
+			return ChoiceProperty(element._items)
+		elif issubclass(element,ComplexType):
+			return element()
+		else:
+			if   element.__name__ == 'int':	
+				return int
+			elif element.__name__ == 'decimal':
+				return float
+			elif element.__name__ == 'double':
+				return float
+			elif element.__name__ == 'float':
+				return float
+			elif element.__name__ == 'duration':
+				return str
+			elif element.__name__ == 'date':
+				return date
+			elif element.__name__ == 'time':
+				return time
+			elif element.__name__ == 'dateTime':
+				return datetime
+			elif element.__name__ == 'str':
+				return str
+			elif element.__name__ == 'bool':
+				return bool
+
+	def toXML(self):
+		""" Method that creates the XML document for the instance of python class.
+		    Return a string with the xml document.
+		 """
+
+		xml = ""
+
+		if self._chosen is None:
+			return xml
+
+		key = self._chosen
+		element = self._values[key]
+
+		if element == None:
+			pass
+		elif isinstance(element,list):
+			for e in element:
+				if isinstance(e,ComplexType):
+					xml += e.toXML(name=key)
+				else:
+					xml += '<%s>%s</%s>'%(key,e,key)
+		elif isinstance(element,Property):
+			xml += '<%s>%s</%s>'%(key,element.value,key)
+		elif isinstance(element,ChoiceProperty):
+			xml += element.toXML()
+		elif isinstance(element,ComplexType):
+			xml += element.toXML(name=key)
+		else:
+			xml += '<%s>%s</%s>'%(key,convert(type(element).__name__,element),key)
+		return str(xml)
+					
 class ComplexType(object):
 	""" Base class for definitions of python class like xml document and schema:
 
@@ -208,6 +328,8 @@ class ComplexType(object):
 						xml += '<%s>%s</%s>'%(key,e,key)
 			elif isinstance(element,Property):
 				xml += '<%s>%s</%s>'%(key,element.value,key)
+			elif isinstance(element,ChoiceProperty):
+				xml += element.toXML()
 			elif isinstance(element,ComplexType):
 				xml += element.toXML(name=key)
 			else:
@@ -261,12 +383,31 @@ class ComplexType(object):
 				
 				xsd += '<%s:element name="%s" type="tns:%s"/>'%(namespace,nameinstance,element.getName())			
 			elif isinstance(element,ArrayProperty):
+				maxOccurs = "maxOccurs=\"unbounded\""
+				if element._maxOccurs != None:
+					if element._maxOccurs <= 0:
+						maxOccurs = ""
+					else:
+						maxOccurs = "maxOccurs=\"%d\"" % element._maxOccurs
+				minOccurs = "minOccurs=\"%d\"" % element._minOccurs
 				if isinstance(element[0],ComplexType) or issubclass(element[0],ComplexType):
 					complextype.append(element[0]._generateXSD(ltype=[]))
-					xsd += '<%s:element name="%s" type="tns:%s" maxOccurs="unbounded"/>'%(namespace,key,element[0].__name__)	
+					xsd += '<%s:element name="%s" type="tns:%s" %s %s/>'%(namespace,key,element[0].__name__, minOccurs, maxOccurs)
 				else:
 					typeelement = createPythonType2XMLType(element[0].__name__)
-					xsd += '<%s:element name="%s" type="%s:%s" maxOccurs="unbounded"/>'%(namespace,key,namespace,typeelement)	
+					xsd += '<%s:element name="%s" type="%s:%s" %s %s/>'%(namespace,key,namespace,typeelement, minOccurs, maxOccurs)
+			
+			elif isinstance(element,ChoiceProperty):
+				xsd += "<%s:choice>\n" % namespace
+				for subelement in element._items:
+					if isinstance(subelement[1],ComplexType) or \
+							issubclass(subelement[1],ComplexType):
+						complextype.append(subelement[1]._generateXSD(ltype=[]))
+						xsd += '<%s:element name="%s" type="tns:%s"/>'%(namespace,subelement[0],subelement[1].__name__)	
+					else:
+						typeelement = createPythonType2XMLType(subelement[1].__name__)
+						xsd += '<%s:element name="%s" type="%s:%s"/>'%(namespace,subelement[0],namespace,typeelement)	
+				xsd += "</%s:choice>\n" % namespace
 			
 			elif isinstance(element,list):
 				if isinstance(element[0],ComplexType) or issubclass(element[0],ComplexType):
@@ -322,6 +463,8 @@ class ComplexType(object):
 			return StringProperty()
 		elif isinstance(element,BooleanProperty):
 			return BooleanProperty()
+		elif isinstance(element, ChoiceProperty):
+			return ChoiceProperty(element._items)
 		elif issubclass(element,ComplexType):
 			return element()
 		else:

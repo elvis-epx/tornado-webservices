@@ -39,6 +39,18 @@ def createArrayXML(name,type,prefix='xsd',maxoccurs=None):
 	complexType += '<%s:element name="%s" type="tns:%sParams"/>\n'%(prefix,name,name)
 	return complexType
 
+def createChoiceXML(name, items, prefix='xsd'):
+	complexType  = '<%s:complexType name="%sParams">\n'%(prefix, name)
+	complexType += '<%s:sequence>\n'%prefix
+	complexType += '<%s:choice>\n'%prefix
+	for item in items:
+		complexType += '<%s:element name="%s" type="%s:%s"/>\n'%(prefix,item[0],prefix,type)
+	complexType += '</%s:choice>\n'%prefix
+	complexType += '</%s:sequence>\n'%prefix
+	complexType += '</%s:complexType>\n'%prefix
+	complexType += '<%s:element name="%s" type="tns:%sParams"/>\n'%(prefix, name, name)
+	return complexType
+
 class Array:
 	""" Create arrays of xml elements.
 	    
@@ -86,6 +98,52 @@ class Array:
 		return complexType
 
 	def genType(self,v):
+		value = None
+		if inspect.isclass(self._type) and issubclass(self._type,PrimitiveType):
+			value = self._type.genType(v)
+		elif hasattr(self._type,'__name__'):
+			value = complextypes.convert(self._type.__name__,v)
+			# Convert str to bool
+			if value == 'true':
+				value = True
+			elif value == 'false':
+				value = False
+		return value
+
+class Choice:
+	""" Create choices of xml elements.
+	"""
+	def __init__(self, items):
+		self._items = items
+
+	def createChoice(self, name):
+		items = []
+		for item in self._items:
+			item = item[:]
+			if inspect.isclass(item[1]) and not issubclass(item[1], PrimitiveType):
+				item[1] = complextypes.createPythonType2XMLType(item[1].__name__)
+			else:
+				item[1] = item[1].getType(item[1])
+			items.push(item)
+		return createChoiceXML(hame, items, 'xsd')
+
+	def createType(self, name):
+		prefix = 'xsd'
+		items = []
+		choiceType = "<%s:choice>\n" % prefix
+		for item in self._items:
+			item = item[:]
+			if inspect.isclass(item[1]) and not issubclass(item[1], PrimitiveType):
+				item[1] = complextypes.createPythonType2XMLType(item[1].__name__)
+			else:
+				item[1] = item[1].getType(item[1])
+			choiceType += '<%s:element name="%s" type="%s:%s" maxOccurs="unbounded"/>\n' \
+				% (prefix, item[0], prefix, item[1])
+			items.push(item)
+		choiceType += "</%s:choice>\n" % prefix
+		return choiceType
+
+	def genType(self, v):
 		value = None
 		if inspect.isclass(self._type) and issubclass(self._type,PrimitiveType):
 			value = self._type.genType(v)

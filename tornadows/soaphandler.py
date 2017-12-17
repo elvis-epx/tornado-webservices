@@ -26,6 +26,7 @@ from tornadows import soap
 from tornadows import xmltypes
 from tornadows import complextypes
 from tornadows import wsdl
+import traceback, sys
 
 """ Global variable. If you want use your own wsdl file """
 wsdl_path = None
@@ -172,6 +173,7 @@ class SoapHandler(tornado.web.RequestHandler):
 						self._executeOperation(operation, done, method='')
 						break
 		except Exception as detail:
+			traceback.print_exc(file=sys.stdout)
 			fault = soapfault('Error in web service : %s'%detail)
 			self.write(fault.getSoap().toxml())
 
